@@ -153,11 +153,11 @@ function init_scripts {
   case "$1" in
     debian/*)
       mkdir -p etc/init.d
-      cp -p "$this"/debian/chronos.init etc/init.d/chronos
+      cp -p "$this"/debian/init etc/init.d/marathon
       ;;
     ubuntu/*)
       mkdir -p etc/init
-      cp "$this"/ubuntu/chronos.upstart etc/init/chronos.conf
+      cp "$this"/ubuntu/upstart etc/init/chronos.conf
       ;;
     redhat/6|redhat/6.*|centos/6|centos/6.*)
       mkdir -p etc/init
