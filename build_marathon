@@ -1,0 +1,334 @@
+#!/bin/bash
+set -o errexit -o nounset -o pipefail
+export LC_ALL=C
+function -h {
+cat <<USAGE
+ USAGE: build_marathon (--repo <git URL>)? (--version <version>)?
+
+  Performs a build in ./chronos-repo after checking out a recent copy of Chronos.
+  The default is to checkout:
+
+    $repo
+
+  You can specify a different Marathon Git URL with \`--repo'. Note that it does
+  not work to use an \`='; the \`--repo' option must be separated from the Git
+  URL with a space.
+
+  The repo can be given as ...?ref=prod7 or even ...?prod7 to select a
+  particular branch to build.
+
+USAGE
+}; function --help { -h ;}
+
+this="$(cd "$(dirname "$0")" && pwd -P)"
+name=marathon
+version="${version:-9999}"
+use_sudo=false
+repo_dir="marathon-repo"
+patch=""
+
+function main {
+  while [[ $# -gt 0 ]]
+  do
+    case "$1" in                                      # Munging globals, beware
+      --repo)                   repo="$2"    ; shift 2 ;;
+      --version)                version="$2" ; shift 2 ;;
+      --patch)                  patch="$2" ; shift 2 ;;
+      --use-sudo)               use_sudo=true; shift 1 ;;
+      *)                        err 'Argument error. Please see help.' ;;
+    esac
+  done
+  checkout go
+}
+
+function go {
+  clean
+  build
+  create_installation
+  pkg
+}
+
+use_git_version=false
+function maybe_append_git_hash {
+  if $use_git_version && git rev-parse --git-dir &>/dev/null
+  then out "$1-g$(git log -n1 --format=%h)"
+  else out "$1"
+  fi
+}
+
+repo=https://github.com/mesosphere/marathon.git
+function checkout {
+  local url=( $(url_split "$repo") )
+  local repository="${url[0]}"
+  local query="${url[1]:-}"
+  if [[ ${url[2]:-} ]]
+  then err "Setting fragment (#) does nothing. Try query (?) instead."
+  fi
+  case "$query" in
+    ref=*|h=*|branch=*|tag=*) local ref="${query#*=}" ;;
+    *)                        local ref="$query" ;;
+  esac
+  if [[ -d $repo_dir ]]
+  then msg "Found directory \`$repo_dir'; skipping checkout."
+  else msg "Cloning: $repository at $ref" && git clone "$repository" $repo_dir
+  fi
+  repodir="${this}/$repo_dir"
+  msg "git checkout -f $ref"
+  ( cd $repo_dir && ( [[ ! ${ref:-} ]] || git fetch --tags && git checkout -f "$ref" ) && "$@" )
+}
+
+function build {(
+  sbt assembly
+  ./bin/build-distribution
+)}
+
+function os_release {
+  msg "Trying /etc/os-release..."
+  if [[ -f /etc/os-release ]]
+  then
+    ( source /etc/os-release && display_version "$ID" "$VERSION_ID" )
+    return 0
+  fi
+  msg "Trying /etc/redhat-release..."
+  if [[ -f /etc/redhat-release ]]
+  then
+    # Seems to be formatted as: <distro> release <version> (<remark>)
+    #                           CentOS release 6.3 (Final)
+    if [[ $(cat /etc/redhat-release) =~ \
+          ^(.+)' '+release' '+([^ ]+)' '+'('[^')']+')'$ ]]
+    then
+      local os
+      case "${BASH_REMATCH[1]}" in
+        'Red Hat '*) os=RedHat ;;
+        *)           os="${BASH_REMATCH[1]}" ;;
+      esac
+      display_version "$os" "${BASH_REMATCH[2]}"
+      return 0
+    else
+      err "/etc/redhat-release not like: <distro> release <version> (<remark>)"
+    fi
+  fi
+  if which sw_vers &> /dev/null
+  then
+    local product="$(sw_vers -productName)"
+    case "$product" in
+      'Mac OS X') display_version MacOSX "$(sw_vers -productVersion)" ;;
+      *) err "Expecting productName to be 'Mac OS X', not '$product'!";;
+    esac
+    return 0
+  fi
+  err "Could not determine OS version!"
+}
+
+function display_version {
+  local os="$( tr A-Z a-z <<<"$1" )" version="$( tr A-Z a-z <<<"$2" )"
+  case "$os" in
+    redhat|centos|debian) out "$os/${version%%.*}" ;;   # Ignore minor versions
+    macosx)               out "$os/${version%.*}" ;;  # Ignore bug fix releases
+    *)                    out "$os/$version" ;;
+  esac
+}
+
+function create_installation {(
+  local pwd="$(pwd -P)"
+  if [ -d toor ]; then
+    rm -rf toor
+  fi
+  mkdir -p toor
+  debroot="${pwd}/toor"
+  cd ${debroot}
+  mkdir -p var/log/marathon etc/default opt/marathon
+  cp "$this"/debian/default        etc/default/marathon
+  init_scripts "$linux"
+  logrotate
+  jars
+  if [[ $use_sudo = true ]]; then
+    sudo chown -R 0:0 .
+  else
+    chown -R 0:0 .
+  fi
+)}
+
+function init_scripts {
+  case "$1" in
+    debian/*)
+      mkdir -p etc/init.d
+      cp -p "$this"/debian/chronos.init etc/init.d/chronos
+      ;;
+    ubuntu/*)
+      mkdir -p etc/init
+      cp "$this"/ubuntu/chronos.upstart etc/init/chronos.conf
+      ;;
+    redhat/6|redhat/6.*|centos/6|centos/6.*)
+      mkdir -p etc/init
+      cp "$this"/ubuntu/chronos.upstart etc/init/chronos.conf
+      ;;
+    *) err "Not sure how to make init scripts for: $1" ;;
+  esac
+}
+
+function jars {
+  # we don't want copy java docs..
+  local jarfile="$(ls $repodir/target/chronos-*.jar)"
+  if [[ -f "$jarfile" ]]; then
+    cp "$jarfile" opt/chronos/lib
+  else
+    err "${jarfile} was not found"
+  fi
+}
+
+function logrotate {
+  case "$linux" in
+    ubuntu/*|debian/*)
+      mkdir -p etc/logrotate.d
+      cp "$this"/debian/logrotate etc/logrotate.d/chronos
+    ;;
+    centos/*|redhat/*)
+      err "not implemented yet"
+    ;;
+    *) err "Not sure how to configure logrotate for: $linux" ;;
+  esac
+}
+
+function pkg {
+  case "$linux" in
+    ubuntu/*|debian/*) deb_ ;;
+    centos/*|redhat/*) rpm_ ;;
+    *)                 err "Not sure how to package for: $linux" ;;
+  esac
+}
+
+function clean {
+  local build_dir="$(pwd -P)/toor"
+  if [[ -d $build_dir ]]; then
+    msg "removing build directory..."
+    rm -rf $build_dir
+  fi
+  msg "removing old deb packages"
+  find $this -name "*.deb" -exec rm -rf {} \;
+}
+
+function architecture {
+  case "$linux" in
+    ubuntu/*|debian/*) dpkg-architecture -qDEB_BUILD_ARCH ;;
+    centos/*|redhat/*) arch ;;
+    *)                 err "Not sure how to determine arch for: $linux" ;;
+  esac
+}
+
+function find_gem_bin {
+  gem env | sed -n '/^ *- EXECUTABLE DIRECTORY: */ { s/// ; p }'
+}
+
+function deb_ {
+  local scripts="${linux%%/*}"
+  local version="${version}${patch}"
+  local pkg="$name"_"$version"_"all".deb
+  local opts=( -t deb
+               -d 'java7-runtime-headless | java6-runtime-headless'
+               -d 'mesos'
+               --after-install "$this/control/postinst"
+               --before-remove "$this/control/prerm"
+               --config-files "/etc/default/chronos"
+               --config-files "/etc/default/chronos"
+               --config-files "/etc/logrotate.d/chronos"
+                )
+  fpm_ "${opts[@]}" -p "$this"/"${pkg}"
+}
+
+function rpm_ {
+  local scripts="${linux%%/*}"
+  local opts=( -t rpm
+               -d libcurl
+             )
+  fpm_ "${opts[@]}" -p "$this"/pkg.rpm
+}
+
+# Doesn't actually work the same as the others...
+function osx_ {(
+  arch=x86_64
+  gem_bin=/usr/bin
+  fpm_ -t osxpkg --osxpkg-identifier-prefix org.apache
+)}
+
+function fpm_ {
+  local version="$(maybe_append_git_hash "$version")"
+  local opts=( -s dir
+               -n "$name"
+               -v "$version"
+               --description
+"Chronos - distributed cron"
+               --url=https://github.com/mesosphere/marathon
+               -a "$arch"
+               --category misc
+               --vendor "mesosphere"
+               -m mesos-dev@incubator.apache.org
+               --prefix=/ )
+  ( cd toor && "$gem_bin"/fpm "${opts[@]}" "$@" -- . )
+}
+
+
+function upload {
+  local pkg="$name"_"$version"_"$arch".deb
+  local url="${1%/}"/"$linux"/"$pkg"
+  curl -X PUT "$url" --data-binary @"$2" >/dev/null
+  out "$url"
+}
+
+function get_system_info {
+  linux="$(os_release)"                 # <distro>/<version>, like ubuntu/12.10
+  arch="$(architecture)"          # In the format used to label distro packages
+  gem_bin="$(find_gem_bin)"                          # Might not be on the PATH
+}
+
+function url_fragment {
+  local step1="${1%#}"#       # Ensure URL ends in #, even if it has a fragment
+  local step2="${step1#*#}"                                # Clip up to first #
+  out "${step2%#}"                    # Remove trailing #, guaranteed by step 1
+}
+
+# Split URL in to resource, query and fragment.
+function url_split {
+  local fragment= query=
+  local sans_fragment="${1%%#*}"
+  local sans_query="${sans_fragment%%'?'*}"
+  [[ $1             = $sans_fragment ]] || fragment="${1#*#}"
+  [[ $sans_fragment = $sans_query    ]] || query="${sans_fragment#*'?'}"
+  out "$sans_query"
+  out "$query"
+  out "$fragment"
+}
+
+# Print the number of cores detected. If we are unable to determine the number
+# of cores, print a warning and assume "1" core.
+function num_cores {
+  local cores=
+  if hash nproc &>/dev/null
+  then cores="$(nproc)"                                   # Linux based systems
+  else                                                            # OSX and BSD
+    if cores="$(sysctl -n hw.ncpu)"
+    then : # Do nothing, success
+    else
+      msg "Could not find nproc and sysctl failed; defaulting to 1 core."
+      cores=1
+    fi
+  fi
+  out "$cores"
+}
+
+function msg { out "$*" >&2 ;}
+function err { local x=$? ; msg "$*" ; return $(( $x == 0 ? 1 : $x )) ;}
+function out { printf '%s\n' "$*" ;}
+
+if [[ ${1:-} ]] && declare -F | cut -d' ' -f3 | fgrep -qx -- "${1:-}"
+then
+  case "$1" in
+    -h|--help|go|url_split|create_installation|checkout|build|osx_) : ;;
+    *) get_system_info ;;
+  esac
+  "$@"
+else
+  get_system_info
+  main "$@"
+fi
+
