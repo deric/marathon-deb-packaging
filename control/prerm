@@ -1,0 +1,10 @@
+#!/bin/sh
+set -e
+
+if [ -x "/etc/init.d/marathon" ]; then
+        if [ -x "`which invoke-rc.d 2>/dev/null`" ]; then
+                invoke-rc.d marathon stop || true
+        else
+                /etc/init.d/marathon stop || true
+        fi
+fi
