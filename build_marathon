@@ -5,7 +5,7 @@ function -h {
 cat <<USAGE
  USAGE: build_marathon (--repo <git URL>)? (--version <version>)?
 
-  Performs a build in ./chronos-repo after checking out a recent copy of Chronos.
+  Performs a build in ./marathon-repo after checking out a recent copy of Chronos.
   The default is to checkout:
 
     $repo
@@ -79,7 +79,7 @@ function checkout {
 
 function build {(
   sbt assembly
-  ./bin/build-distribution
+#  ./bin/build-distribution
 )}
 
 function os_release {
@@ -137,8 +137,9 @@ function create_installation {(
   mkdir -p toor
   debroot="${pwd}/toor"
   cd ${debroot}
-  mkdir -p var/log/marathon etc/default opt/marathon
-  cp "$this"/debian/default        etc/default/marathon
+  mkdir -p var/log/marathon etc/marathon/conf opt/marathon/target opt/marathon/bin
+  cp "$repodir"/bin/start        opt/marathon/bin
+  cp "$repodir"/bin/marathon-framework        opt/marathon/bin
   init_scripts "$linux"
   logrotate
   jars
@@ -157,11 +158,11 @@ function init_scripts {
       ;;
     ubuntu/*)
       mkdir -p etc/init
-      cp "$this"/ubuntu/upstart etc/init/chronos.conf
+      cp "$this"/ubuntu/upstart etc/init/marathon.conf
       ;;
     redhat/6|redhat/6.*|centos/6|centos/6.*)
       mkdir -p etc/init
-      cp "$this"/ubuntu/chronos.upstart etc/init/chronos.conf
+      cp "$this"/debian/init etc/init/marathon
       ;;
     *) err "Not sure how to make init scripts for: $1" ;;
   esac
@@ -169,9 +170,9 @@ function init_scripts {
 
 function jars {
   # we don't want copy java docs..
-  local jarfile="$(ls $repodir/target/chronos-*.jar)"
+  local jarfile="$(ls $repodir/target/scala-*/*.jar)"
   if [[ -f "$jarfile" ]]; then
-    cp "$jarfile" opt/chronos/lib
+    cp "$jarfile" opt/marathon/target
   else
     err "${jarfile} was not found"
   fi
@@ -181,7 +182,7 @@ function logrotate {
   case "$linux" in
     ubuntu/*|debian/*)
       mkdir -p etc/logrotate.d
-      cp "$this"/debian/logrotate etc/logrotate.d/chronos
+      cp "$this"/debian/logrotate etc/logrotate.d/marathon
     ;;
     centos/*|redhat/*)
       err "not implemented yet"
@@ -228,10 +229,9 @@ function deb_ {
                -d 'java7-runtime-headless | java6-runtime-headless'
                -d 'mesos'
                --after-install "$this/control/postinst"
+               --before-remove "$this/control/postrm"
                --before-remove "$this/control/prerm"
-               --config-files "/etc/default/chronos"
-               --config-files "/etc/default/chronos"
-               --config-files "/etc/logrotate.d/chronos"
+               --config-files "/etc/logrotate.d/marathon"
                 )
   fpm_ "${opts[@]}" -p "$this"/"${pkg}"
 }
