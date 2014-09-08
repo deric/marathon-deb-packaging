@@ -137,9 +137,10 @@ function create_installation {(
   mkdir -p toor
   debroot="${pwd}/toor"
   cd ${debroot}
-  mkdir -p var/log/marathon etc/marathon/conf opt/marathon/target opt/marathon/bin
+  mkdir -p var/log/marathon etc/marathon/conf opt/marathon/lib opt/marathon/bin
   cp "$repodir"/bin/start        opt/marathon/bin
   cp "$repodir"/bin/marathon-framework        opt/marathon/bin
+  cp "$this"/debian/marathon        opt/marathon/bin
   init_scripts "$linux"
   logrotate
   jars
@@ -172,7 +173,7 @@ function jars {
   # we don't want copy java docs..
   local jarfile="$(ls $repodir/target/scala-*/*.jar)"
   if [[ -f "$jarfile" ]]; then
-    cp "$jarfile" opt/marathon/target
+    cp "$jarfile" opt/marathon/lib
   else
     err "${jarfile} was not found"
   fi
