@@ -206,6 +206,8 @@ function clean {
     msg "removing build directory..."
     rm -rf $build_dir
   fi
+  msg "removing '${repodir}/target'"
+  rm -rf $repodir/target
   msg "removing old deb packages"
   find $this -name "*.deb" -exec rm -rf {} \;
 }
