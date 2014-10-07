@@ -1,13 +1,11 @@
 #!/bin/bash
-CHRONOS_HOME="/opt/marathon"
+MARATHON_HOME="/opt/marathon"
 MESOS_HOME="/usr/share/java"
 MESOS_LIB="/usr/local/lib/libmesos.so"
 
-ZK_HOSTS="$(cat /etc/mesos/zk)"
+#LOG_DIR="/var/log/marathon"
+# if you want marathon to bind to specific port,
+# otherwise random port between 30000-60000 is choosen
+#export LIBPROCESS_PORT=5070
 
-#HOSTNAME=localhost
-PORT=8080
-
-# Mesos requirement
-#MASTER=zk://localhost:2181/mesos
-MASTER="$(cat /etc/mesos/zk)"
+#EXTRA_OPTS=

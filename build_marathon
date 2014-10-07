@@ -137,10 +137,11 @@ function create_installation {(
   mkdir -p toor
   debroot="${pwd}/toor"
   cd ${debroot}
-  mkdir -p var/log/marathon etc/marathon/conf opt/marathon/lib opt/marathon/bin
+  mkdir -p var/log/marathon etc/marathon/conf opt/marathon/lib opt/marathon/bin etc/default
   cp "$repodir"/bin/start        opt/marathon/bin
   cp "$repodir"/bin/marathon-framework        opt/marathon/bin
   cp "$this"/debian/marathon        opt/marathon/bin
+  cp "$this"/debian/default      etc/default/marathon
   init_scripts "$linux"
   logrotate
   jars
@@ -235,6 +236,7 @@ function deb_ {
                --before-remove "$this/control/postrm"
                --before-remove "$this/control/prerm"
                --config-files "/etc/logrotate.d/marathon"
+               --config-files "/etc/default/marathon"
                 )
   fpm_ "${opts[@]}" -p "$this"/"${pkg}"
 }
