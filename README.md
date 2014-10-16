@@ -1,11 +1,13 @@
 # Marathon deb packaging
 
-## Requirements
+## Requirements for building
 
   * `apt-get install dpkg-dev git`
   * some Java
      - e.g. `apt-get install openjdk-7-jdk`
      - Oracle JDK
+  * Ruby
+     - FPM `gem install fpm`
   * install SBT, e.g. from here:
 
     http://www.scala-sbt.org/release/tutorial/Installing-sbt-on-Linux.html
