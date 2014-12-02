@@ -1,0 +1,13 @@
+#!/bin/bash
+
+exec 2>&1
+
+PATH=/bin:/usr/bin:/sbin:/usr/sbin
+EXTRA_OPTS=""
+. /etc/default/marathon
+
+DAEMON="${MARATHON_HOME}/bin/marathon"
+
+
+exec $DAEMON ${EXTRA_OPTS} 2>&1
+
