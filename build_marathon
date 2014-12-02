@@ -62,11 +62,11 @@ function maybe_append_git_hash {
 
 repo="https://github.com/mesosphere/marathon.git"
 function checkout {
+  local url=( $(url_split "$repo") )
+  local repository="${url[0]}"
+  local query="${url[1]:-}"
   if [[ -z "$ref" ]]; then
-    local url=( $(url_split "$repo") )
-    local repository="${url[0]}"
-    local query="${url[1]:-}"
-    if [[ ${url[2]:-} ]]; then
+   if [[ ${url[2]:-} ]]; then
       err "Setting fragment (#) does nothing. Try query (?) instead."
     fi
     case "$query" in
