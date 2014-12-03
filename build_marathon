@@ -184,8 +184,9 @@ function init_scripts {
 function runit {
   mkdir -p etc/service
   mkdir -p srv/marathon-service
-  cp -r "$this"/runit/ srv/marathon-service
-  ln -s srv/marathon-service "$debroot/etc/service/marathon"
+  cp -r "$this"/runit/* srv/marathon-service
+  # doesn't work as absolute link
+  #ln -s srv/marathon-service "$debroot/etc/service/marathon"
 }
 
 function jars {
