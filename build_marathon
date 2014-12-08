@@ -202,8 +202,10 @@ function jars {
 function logrotate {
   case "$linux" in
     ubuntu/*|debian/*)
-      mkdir -p etc/logrotate.d
-      cp "$this"/debian/logrotate etc/logrotate.d/marathon
+      if [[ $start_with != "runit" ]];then
+        mkdir -p etc/logrotate.d
+        cp "$this"/debian/logrotate etc/logrotate.d/marathon
+      fi
     ;;
     centos/*|redhat/*)
       err "not implemented yet"
@@ -254,11 +256,12 @@ function deb_ {
                --after-install "$this/control/postinst"
                --before-remove "$this/control/postrm"
                --before-remove "$this/control/prerm"
-               --config-files "/etc/logrotate.d/marathon"
                --config-files "/etc/default/marathon"
                 )
   if [[ $start_with == "runit" ]];then
     opts+=( -d 'runit' )
+  else
+    opts+=( --config-files "/etc/logrotate.d/marathon" )
   fi
   fpm_ "${opts[@]}" -p "$this"/"${pkg}"
 }
