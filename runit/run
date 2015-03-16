@@ -9,5 +9,5 @@ EXTRA_OPTS=""
 DAEMON="${MARATHON_HOME}/bin/marathon"
 
 
-exec $DAEMON ${EXTRA_OPTS} 2>&1
+exec $DAEMON ${EXTRA_OPTS} >> /var/log/marathon/marathon.log 2>&1
 
