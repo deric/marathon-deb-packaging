@@ -183,8 +183,8 @@ function init_scripts {
 
 function runit {
   mkdir -p etc/service
-  mkdir -p etc/sv
-  cp -r "$this"/runit/* etc/sv
+  mkdir -p etc/sv/marathon
+  cp -r "$this"/runit/* etc/sv/marathon
   # doesn't work as absolute link
   #ln -s srv/marathon-service "$debroot/etc/service/marathon"
 }
