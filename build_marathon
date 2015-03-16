@@ -183,8 +183,8 @@ function init_scripts {
 
 function runit {
   mkdir -p etc/service
-  mkdir -p srv/marathon-service
-  cp -r "$this"/runit/* srv/marathon-service
+  mkdir -p etc/sv
+  cp -r "$this"/runit/* etc/sv
   # doesn't work as absolute link
   #ln -s srv/marathon-service "$debroot/etc/service/marathon"
 }
@@ -202,10 +202,10 @@ function jars {
 function logrotate {
   case "$linux" in
     ubuntu/*|debian/*)
-      if [[ $start_with != "runit" ]];then
+      #if [[ $start_with != "runit" ]];then
         mkdir -p etc/logrotate.d
         cp "$this"/debian/logrotate etc/logrotate.d/marathon
-      fi
+      #fi
     ;;
     centos/*|redhat/*)
       err "not implemented yet"
@@ -260,9 +260,8 @@ function deb_ {
                 )
   if [[ $start_with == "runit" ]];then
     opts+=( -d 'runit' )
-  else
-    opts+=( --config-files "/etc/logrotate.d/marathon" )
   fi
+  opts+=( --config-files "/etc/logrotate.d/marathon" )
   fpm_ "${opts[@]}" -p "$this"/"${pkg}"
 }
 
